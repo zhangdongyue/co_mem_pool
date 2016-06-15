@@ -20,6 +20,9 @@ static const size_t  co_pagesize = getpagesize();
 #define CO_MEMPOOL_ALIGNMENT	16
 #define CO_MIN_MEMPOOL_SIZE 
 
+#define CO_OK 0
+#define CO_ERR 1
+
 typedef void (* co_mempool_cleanup_pt)(void *data);
 
 typedef struct co_mempool_cleanup_s co_mempool_cleanup_t;

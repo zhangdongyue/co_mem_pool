@@ -1,10 +1,20 @@
+//=============================================
+//Copyright (c) DONGYUE.ZDY All Rights Reserved.
+//=============================================
+
+/*
+ * @file   co_mempool.c
+ * @author dongyue.zippy (zhangdy1986@gmail.com)
+ * @date   2016-06-15
+ * @brief  memory pool
+ * */
+
 #include "co_mempool.h"
 
 static void *co_palloc_block(co_mempool_t *pool, size_t size);
 static void *co_palloc_large(co_mempool_t *pool, size_t size);
 
-co_mempool_t * 
-co_create_mempool(size_t size)
+co_mempool_t * co_create_mempool(size_t size)
 {
 	co_mempool_t	*p; 
 
@@ -36,8 +46,7 @@ co_create_mempool(size_t size)
 
 } /* co_create_mempool */
 
-void
-co_destroy_mempool(co_mempool_t *pool)
+void co_destroy_mempool(co_mempool_t *pool)
 {
 	co_mempool_t            *p, *n;
 	co_mempool_large_t      *l;
@@ -79,8 +88,7 @@ co_destroy_mempool(co_mempool_t *pool)
 
 } /* co_destroy_mempool */
 
-void 
-co_reset_mempool(co_mempool_t * pool)
+void co_reset_mempool(co_mempool_t * pool)
 {
 	co_mempool_t       *p;
 	co_mempool_large_t *l;
@@ -102,8 +110,7 @@ co_reset_mempool(co_mempool_t * pool)
 
 } /* co_reset_mempool */
 
-void *
-co_palloc(co_mempool_t * pool, size)
+void * co_palloc(co_mempool_t * pool, size)
 {
 	unsigned char *m;
 	co_mempool_t *p;
@@ -126,8 +133,7 @@ co_palloc(co_mempool_t * pool, size)
 
 } /* co_palloc */
 
-void *
-co_pnalloc(co_mempool_t * pool, size_t size)
+void * co_pnalloc(co_mempool_t * pool, size_t size)
 {
 	unsigned char *m;
 	co_mempool_t *p;
@@ -155,8 +161,7 @@ co_pnalloc(co_mempool_t * pool, size_t size)
 /* Add new data block to append the memory pool, 
  * which size is equel to total size of pool before,
  * that is,increase double every time*/
-static void *
-co_palloc_block(co_mempool_t *pool, size_t size)
+static void * co_palloc_block(co_mempool_t *pool, size_t size)
 {
 	unsigned char *m;
 	size_t psize;
@@ -197,8 +202,7 @@ co_palloc_block(co_mempool_t *pool, size_t size)
 
 } /* co_palloc_block */
 
-static void *
-co_palloc_large(co_mempool_t *pool, size_t size)
+static void * co_palloc_large(co_mempool_t *pool, size_t size)
 {
 	void * p;
 	unsigned int n;
@@ -238,4 +242,134 @@ co_palloc_large(co_mempool_t *pool, size_t size)
 
 } /* co_palloc_large */
 
+void * co_pmemalign(co_mempool_t *pool, size_t size, size_t alignment)
+{
+	void *p;
+	co_mempool_large_t * large;
+
+	int err = posix_memalign(p, alignment, size);
+	if (err) {
+		return NULL;
+	}
+
+	large = co_palloc(pool, sizeof(co_mempool_large_t));
+	if (large == NULL) {
+		free(p);
+		return NULL;
+	}
+
+	large->alloc = p;
+	large->next = pool->large;
+	pool->large = large;
+
+	return p;
+} /* co_pmemalign */
+
+int co_pfree(co_mempool_t * pool, void *p)
+{
+	co_mempool_large_t *l;
+
+	for (l = pool->large; l; l = l->next) {
+		if (p == l->alloc) {
+			//TODO: log print
+			free(l->alloc);
+			l->alloc = NULL;
+
+			return CO_OK; 
+		}
+	}
+
+	return CO_ERR;
+
+} /* co_pfree */
+
+void * co_pcalloc(co_mempool_t *pool, size_t size)
+{
+	void *p;
+
+	p = co_palloc(pool, size);
+	if (p) {
+		memset(p, 0, size);
+	}
+
+	return p;
+
+} /* co_pcalloc */
+
+void co_mempool_cleanup_t * co_mempool_cleanup_add(co_mempool_t * p,
+												   size_t size)
+{
+	co_mempool_cleanup_t *c;
+
+	c = co_palloc(p, sizeof(co_mempool_cleanup_t));
+	if (c == NULL) {
+		return NULL;
+	}
+
+	if (size) {
+		c->data = co_palloc(p, size);
+		if (c->data == NULL) {
+			return NULL;
+		}
+	} else {
+		c->data = NULL;
+	}
+
+	c->handler = NULL; //define by users
+	c->next = p->cleanup;
+
+	p->cleanup = c;
+
+	return c;
+
+} /* co_mempool_cleanup_add  */
+
+void co_mempool_run_cleanup_file(co_mempool_t *p, int fd)
+{
+	co_mempool_cleanup_t *c;
+	co_mempool_cleanup_file_t *cf;
+
+	for (c = p->cleanup; c; c = c->next) {
+		if (c->handler == co_mempool_cleanup_file) {
+			cf = c->data;
+
+			if (cf->fd == fd) {
+				c->handler(cf);
+				c->handler = NULL;
+				return;
+			}
+		}
+	}
+} /* co_mempool_run_cleanup_file */
+
+void co_mempool_cleanup_file(void *data) 
+{
+	co_mempool_cleanup_file_t *c = data;
+
+	if (close(c->fd) == -1) {
+		//TODO:log error
+		fprintf(stderr, "failed close file:%s",strerror(errno));
+	}
+} /* co_mempool_cleanup_file */
+
+void co_mempool_delete_file(void *data) 
+{
+	co_mempool_cleanup_file_t *c = data;
+
+	int err;
+
+	if (unlink(c->name) == -1) {
+		err = errno;
+
+		if (err != ENOENT) {
+			fprintf(stderr, "delete file %s failed:%s\n",
+					c->name,strerror(err));
+		}
+	}
+
+	if (close(c->fd) == -1) {
+		fprintf(stderr, "close file:%s failed:%s",
+				c->name,strerror(errno));
+	}
+} /* co_mempool_delete_file */
 
