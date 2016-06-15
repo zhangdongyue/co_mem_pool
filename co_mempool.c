@@ -296,8 +296,7 @@ void * co_pcalloc(co_mempool_t *pool, size_t size)
 
 } /* co_pcalloc */
 
-void co_mempool_cleanup_t * co_mempool_cleanup_add(co_mempool_t * p,
-												   size_t size)
+void co_mempool_cleanup_t * co_mempool_cleanup_add(co_mempool_t * p,size_t size)
 {
 	co_mempool_cleanup_t *c;
 
