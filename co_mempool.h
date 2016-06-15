@@ -1,3 +1,14 @@
+//=============================================
+//Copyright (c) DONGYUE.ZDY All Rights Reserved.
+//=============================================
+
+/*
+ * @file   co_mempool.h
+ * @author dongyue.zippy (zhangdy1986@gmail.com)
+ * @date   2016-06-15
+ * @brief  memory pool
+ * */
+
 #ifndef __CO_MEMPOOL_H__
 #define __CO_MEMPOOL_H__
 
