@@ -14,6 +14,56 @@
 static void *co_palloc_block(co_mempool_t *pool, size_t size);
 static void *co_palloc_large(co_mempool_t *pool, size_t size);
 
+void * co_mem_alloc(size_t size) {
+	void *p;
+	p = malloc(size);
+	if (p == NULL) {
+		log_err("malloc size %d failed",size);
+	}
+
+	log_debug("malloc %p:%uz", p, size);
+
+	return p;
+}
+
+void * co_mem_calloc(size_t size) {
+	void *p;
+	p = co_mem_alloc(size);
+	if (p) {
+		memset(p, 0, size);
+	}
+	return p;
+}
+
+#if (HAVE_POSIX_MEMALIGN)
+void co_memalign(size_t alignment, size_t size)
+{
+	void *p;
+	int err;
+	err = posix_memalign(&p, alignment, size);
+	if (err) {
+		log_err("posix_memalign(%uz, %uz) failed", alignment, size);
+		p = NULL;
+    }
+
+	log_debug("posix_memalign :%p:%uz @%uz", p, size, alignment);	
+    return p;
+}
+#elif (HAVE_MEMALIGN)
+void co_memalign(size_t alignment, size_t size)
+{
+	void *p;
+	p = memalign(alignment, size);
+
+	if (p == NULL) {
+		log_err("memalign(%uz, %uz) failed", alignment, size);
+	}
+
+	log_debug("memalign :%p:%uz @%uz", p, size, alignment);	
+	return p;
+}
+#endif
+
 co_mempool_t * co_create_mempool(size_t size)
 {
 	co_mempool_t	*p; 
@@ -23,9 +73,10 @@ co_mempool_t * co_create_mempool(size_t size)
 	 * please use co_alloc(size), 
 	 * here we use posix_xx on linux
 	 */
-	int err = posix_memalign(p, CO_MEMPOOL_ALIGNMENT, size);  
-	if (err) {
-		//TODO: print log
+	p = co_memalign(CO_MEMPOOL_ALIGNMENT, size);  
+	if (p == NULL) {
+		log_err("co_memalign(%uz, %uz) failed", 
+			CO_MEMPOOL_ALIGNMENT, size);
 		return NULL;
 	}
 
@@ -69,7 +120,7 @@ void co_destroy_mempool(co_mempool_t *pool)
 #if (CO_DEBUG)
 	for (p = pool, n = pool->d.next; /* void */;p = n, n = n->d.next) {
 
-		//TODO log_debug(free:p,unused:(p->d.end - p->d.last))
+		log_debug("free:%p,unused:%d", p, (p->d.end - p->d.last))
 		
 		if (n==NULL) {
 			break;
@@ -169,9 +220,10 @@ static void * co_palloc_block(co_mempool_t *pool, size_t size)
 
 	psize = (size_t)(pool->d.end - (unsigned char *)pool);
 
-	int err = posix_memalign(m, CO_MEMPOOL_ALIGNMENT, psize);
-	if (err) {
-		//TODO log
+	m = co_memalign(CO_MEMPOOL_ALIGNMENT, psize);
+	if (m == NULL) {
+		log_err("co_memalign(%uz, %uz) failed", 
+			CO_MEMPOOL_ALIGNMENT, psize);
 		return NULL;
 	}
 
@@ -247,8 +299,8 @@ void * co_pmemalign(co_mempool_t *pool, size_t size, size_t alignment)
 	void *p;
 	co_mempool_large_t * large;
 
-	int err = posix_memalign(p, alignment, size);
-	if (err) {
+	p = co_memalign(alignment, size);
+	if (p == NULL) {
 		return NULL;
 	}
 
@@ -263,6 +315,7 @@ void * co_pmemalign(co_mempool_t *pool, size_t size, size_t alignment)
 	pool->large = large;
 
 	return p;
+
 } /* co_pmemalign */
 
 int co_pfree(co_mempool_t * pool, void *p)
@@ -339,6 +392,7 @@ void co_mempool_run_cleanup_file(co_mempool_t *p, int fd)
 			}
 		}
 	}
+
 } /* co_mempool_run_cleanup_file */
 
 void co_mempool_cleanup_file(void *data) 
@@ -346,9 +400,9 @@ void co_mempool_cleanup_file(void *data)
 	co_mempool_cleanup_file_t *c = data;
 
 	if (close(c->fd) == -1) {
-		//TODO:log error
-		fprintf(stderr, "failed close file:%s",strerror(errno));
+		log_err("failed close file");
 	}
+
 } /* co_mempool_cleanup_file */
 
 void co_mempool_delete_file(void *data) 
@@ -361,14 +415,13 @@ void co_mempool_delete_file(void *data)
 		err = errno;
 
 		if (err != ENOENT) {
-			fprintf(stderr, "delete file %s failed:%s\n",
-					c->name,strerror(err));
+			log_err("delete file %s failed", c->name);
 		}
 	}
 
 	if (close(c->fd) == -1) {
-		fprintf(stderr, "close file:%s failed:%s",
-				c->name,strerror(errno));
+		log_err("close file:%s failed", c->name);
 	}
+
 } /* co_mempool_delete_file */
 

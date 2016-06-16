@@ -16,6 +16,7 @@
 #include<limits.h>
 #include<stdlib.h>
 #include<string.h>
+#include<stdarg.h>
 
 /* co_pagesize is always 4096 on x86/linux */
 static const size_t  co_pagesize = getpagesize();
@@ -33,6 +34,22 @@ static const size_t  co_pagesize = getpagesize();
 
 #define CO_OK 0
 #define CO_ERR 1
+
+#define log_err(msg, ...) \
+	fprintf(stderr,"[ERROR][%s:%d] "msg" : %s\n", \
+			__FILE__, __LINE__, ##__VA_ARGS__, strerror(errno))
+
+#define log_info(msg, ...) \
+	fprintf(stderr,"[INFO][%s:%d] "msg" \n", \
+			__FILE__, __LINE__, ##__VA_ARGS__)
+
+#if CO_DEBUG
+#define log_debug(msg, ...) \
+	fprintf(stderr,"[DEBUG][%s:%d] "msg" \n", \
+			__FILE__, __LINE__, ##__VA_ARGS__)
+#else
+#define log_debug(msg, ...) NULL
+#endif
 
 typedef void (* co_mempool_cleanup_pt)(void *data);
 
@@ -77,6 +94,13 @@ typedef struct {
 /* Replace system calls */
 void * co_mem_alloc(size_t size); 
 void * co_mem_calloc(size_t size);
+#if (HAVE_POSIX_MEMALIGN || HAVE_MEMALIGN) 
+void * co_memalign(size_t alignment, size_t size);
+#else
+#define co_memalign(alignment, size) co_mem_alloc(size)
+#endif
+
+#define HAVE_POSIX_MEMALIGN 1
 
 co_mempool_t co_create_mempool(size_t size);
 void * co_destroy_mempool(co_mempool_t * pool);
