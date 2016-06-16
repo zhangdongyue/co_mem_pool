@@ -2,9 +2,15 @@
 #author: dongyue.z
 #date:2016.01.29
 
-CC = gcc -w -O2 -fPIC
+CC = gcc 
 
-TARGET = threadpool
+CFLAGS= -w -O2 -fPIC
+
+ifdef DEBUG
+CFLAGS += -D CO_DEBUG=1
+endif
+
+TARGET = mempool_test
 LIBSO_NAME = libco_mempool.so
 LIBA_NAME = libco_mempool.a
 SRC_PATH = .
@@ -21,16 +27,16 @@ all:lib
 lib:${LIBSO_NAME} ${LIBA_NAME}
 
 ${LIBSO_NAME}:$(OBJS)
-	$(CC) -fPIC -shared  $(OBJS) $(LIBSO) -o $@
+	$(CC) -shared  $(OBJS) $(LIBSO) -o $@
 
 ${LIBA_NAME}:$(OBJS)
 	${AR} $@ $?
 
-test: test.c
-	$(CC) $(ARGV) $? $(LIBSO) -o $(TARGET)
+test: test.c 
+	$(CC) $(CFLAGS) $(ARGV) $? $(LIBSO_NAME) -o $(TARGET)
 	
 %.o:%.c
-	$(CC) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 .PHONY: clean
 clean:

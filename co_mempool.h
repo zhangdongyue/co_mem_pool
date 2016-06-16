@@ -17,9 +17,11 @@
 #include<stdlib.h>
 #include<string.h>
 #include<stdarg.h>
+#include<stdio.h>
+#include<errno.h>
 
 /* co_pagesize is always 4096 on x86/linux */
-static const size_t  co_pagesize = getpagesize();
+size_t  co_pagesize;
 #define co_align(d, a)	((d) + (a - 1) & ~(a - 1))
 #define co_align_ptr(p, a) \
 	(unsigned char *) (((unsigned int) (p) + ((unsigned int) a - 1)) & ~((unsigned int) a - 1))
@@ -42,6 +44,8 @@ static const size_t  co_pagesize = getpagesize();
 #define log_info(msg, ...) \
 	fprintf(stderr,"[INFO][%s:%d] "msg" \n", \
 			__FILE__, __LINE__, ##__VA_ARGS__)
+
+//#define CO_DEBUG 1
 
 #if CO_DEBUG
 #define log_debug(msg, ...) \
@@ -79,7 +83,7 @@ struct co_mempool_s {
 	co_mempool_data_t	d;
 	size_t	max;
 	co_mempool_t	*current;
-	co_chain_t	*chain;
+	//co_chain_t	*chain;
 	co_mempool_large_t	*large;
 	co_mempool_cleanup_t	*cleanup;
 	//TODO: add log structure
@@ -94,17 +98,18 @@ typedef struct {
 /* Replace system calls */
 void * co_mem_alloc(size_t size); 
 void * co_mem_calloc(size_t size);
+
+#define HAVE_POSIX_MEMALIGN 1
+#define HAVE_MEMALIGN 0
 #if (HAVE_POSIX_MEMALIGN || HAVE_MEMALIGN) 
 void * co_memalign(size_t alignment, size_t size);
 #else
 #define co_memalign(alignment, size) co_mem_alloc(size)
 #endif
 
-#define HAVE_POSIX_MEMALIGN 1
-
-co_mempool_t co_create_mempool(size_t size);
-void * co_destroy_mempool(co_mempool_t * pool);
-void * co_reset_mempool(co_mempool_t * pool);
+co_mempool_t * co_create_mempool(size_t size);
+void  co_destroy_mempool(co_mempool_t * pool);
+void  co_reset_mempool(co_mempool_t * pool);
 
 /* Alloc on mempool */
 void * co_palloc(co_mempool_t *pool, size_t size);

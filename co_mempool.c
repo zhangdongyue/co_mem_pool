@@ -36,7 +36,7 @@ void * co_mem_calloc(size_t size) {
 }
 
 #if (HAVE_POSIX_MEMALIGN)
-void co_memalign(size_t alignment, size_t size)
+void * co_memalign(size_t alignment, size_t size)
 {
 	void *p;
 	int err;
@@ -50,7 +50,7 @@ void co_memalign(size_t alignment, size_t size)
     return p;
 }
 #elif (HAVE_MEMALIGN)
-void co_memalign(size_t alignment, size_t size)
+void * co_memalign(size_t alignment, size_t size)
 {
 	void *p;
 	p = memalign(alignment, size);
@@ -67,6 +67,7 @@ void co_memalign(size_t alignment, size_t size)
 co_mempool_t * co_create_mempool(size_t size)
 {
 	co_mempool_t	*p; 
+	co_pagesize  =	getpagesize();
 
 	/* Or memalign(alignment, size) which return p 
 	 * if have no memory align function , 
@@ -89,7 +90,7 @@ co_mempool_t * co_create_mempool(size_t size)
 	p->max = (size < CO_MAX_ALLOC_FROM_MEMPOOL) ? size : CO_MAX_ALLOC_FROM_MEMPOOL;
 
 	p->current = p;
-	p->chain   = NULL;
+	//p->chain   = NULL;
 	p->large   = NULL;
 	p->cleanup = NULL;
 
@@ -103,7 +104,7 @@ void co_destroy_mempool(co_mempool_t *pool)
 	co_mempool_large_t      *l;
 	co_mempool_cleanup_t    *c;
 
-	for (c = pool->cleanup; c; c = ->next) {
+	for (c = pool->cleanup; c; c = c->next) {
 		if (c->handler) {
 			//TODO p log
 			c->handler(c->data);
@@ -120,7 +121,7 @@ void co_destroy_mempool(co_mempool_t *pool)
 #if (CO_DEBUG)
 	for (p = pool, n = pool->d.next; /* void */;p = n, n = n->d.next) {
 
-		log_debug("free:%p,unused:%d", p, (p->d.end - p->d.last))
+		log_debug("free:%p,unused:%d", p, (p->d.end - p->d.last));
 		
 		if (n==NULL) {
 			break;
@@ -150,18 +151,18 @@ void co_reset_mempool(co_mempool_t * pool)
 		}
 	}
 
-	for (p = pool; p; p = p->next) {
+	for (p = pool; p; p = p->d.next) {
 		p->d.last = (unsigned char *)p + sizeof(co_mempool_t);
 		p->d.failed = 0;
 	}
 
 	p->current = pool;
-	p->chain = NULL;
+	//p->chain = NULL;
 	p->large = NULL;
 
 } /* co_reset_mempool */
 
-void * co_palloc(co_mempool_t * pool, size)
+void * co_palloc(co_mempool_t * pool, size_t size)
 {
 	unsigned char *m;
 	co_mempool_t *p;
@@ -175,7 +176,7 @@ void * co_palloc(co_mempool_t * pool, size)
 				p->d.last = m + size;
 				return m;
 			}
-		} while (p)
+		} while (p);
 
 		return co_palloc_block(pool, size);
 	}	
@@ -200,7 +201,7 @@ void * co_pnalloc(co_mempool_t * pool, size_t size)
 			}
 
 			p = p->d.next;
-		} while (p)
+		} while (p);
 
 		return co_palloc_block(pool, size);
 	}
@@ -349,7 +350,7 @@ void * co_pcalloc(co_mempool_t *pool, size_t size)
 
 } /* co_pcalloc */
 
-void co_mempool_cleanup_t * co_mempool_cleanup_add(co_mempool_t * p,size_t size)
+co_mempool_cleanup_t * co_mempool_cleanup_add(co_mempool_t * p,size_t size)
 {
 	co_mempool_cleanup_t *c;
 
