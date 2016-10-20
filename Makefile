@@ -6,6 +6,12 @@ CC = gcc
 
 CFLAGS= -w -O2 -fPIC
 
+ #ver= DEBUG
+ ##ifeq ($(ver), DEBUG)
+ # CFLAGS += -D CO_DEBUG=1
+ #endif
+
+
 ifdef DEBUG
 CFLAGS += -D CO_DEBUG=1
 endif
